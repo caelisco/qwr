@@ -194,7 +194,7 @@ options := qwr.Options{
     
     // Error handling
     ErrorQueueMaxSize: 1000,          // Max errors in memory
-    ErrorLogPath:      "",            // Path for persistent error logging (empty = disabled)
+    ErrorLogPath:      "",            // Set via WithErrorDB() with an empty string disabling it
     EnableAutoRetry:   false,         // Automatic retry
     MaxRetries:        3,             // Max retry attempts
     BaseRetryDelay:    30*time.Second,// Initial retry delay
@@ -229,20 +229,21 @@ qwr classifies errors:
 - **Unknown Errors**: Unclassified → No retry (safe default)
 
 ### Error Logging
-Errors can be persisted to a separate SQLite database for analysis. When enabled (via `ErrorLogPath` option), errors are logged with full context:
+Errors from async operations can be persisted to a separate SQLite database. This is disabled by default and must be explicitly enabled using `WithErrorDB()`:
+
+```go
+manager, err := qwr.New("test.db").
+    WithErrorDB("errors.db").  // Enable persistent error logging
+    Open()
+```
+
+When enabled, errors are logged with full context:
 - SQL statement and parameters (CBOR encoded)
 - Error type and message
 - Retry attempts and timestamps
 - Failure reason
 
-You can customise the path:
-```go
-options := qwr.Options{
-    ErrorLogPath: "/path/to/custom_errors.db", // Enable persistent error logging
-}
-```
-
-If `ErrorLogPath` is empty (default), persistent error logging is disabled.
+If `WithErrorDB()` is not called, error logging is disabled. Using `:memory:` is rejected to prevent unbound memory growth.
 
 ### Retry Configuration
 ```go
@@ -433,15 +434,9 @@ func main() {
         log.Fatal(err)
     }
 
-    // Create options with error log path
-    opts := qwr.Options{
-        EnableReader:  true,
-        EnableWriter:  true,
-        ErrorLogPath:  "test_errors.db", // Optional: enable persistent error logging
-    }
-
-    // Pass connections and options to qwr
-    manager, err := qwr.NewSQL(readerDB, writerDB, opts).
+    // Pass connections to qwr and enable error logging
+    manager, err := qwr.NewSQL(readerDB, writerDB).
+        WithErrorDB("errors.db").  // Optional: enable persistent error logging
         Reader(profile.ReadBalanced()).
         Writer(profile.WriteBalanced()).
         Open()
@@ -453,16 +448,9 @@ func main() {
     // Use manager normally...
 }
 ```
-The Manager takes full ownership of your database connections, so a call to `Manager.Close()` will close both reader and writer connections. Profiles can still be applied to your connections (profiles are just specified SQLite PRAGMAS). You can optionally setup `ErrorLogDB` in Options to enable persistent error logging for async writes.
+The Manager takes full ownership of your database connections. Call `Manager.Close()` to close both reader and writer connections. Use `WithErrorDB()` to enable persistent error logging for async operations.
 
-You can also set the error log path using the fluent API:
-```go
-manager, err := qwr.NewSQL(readerDB, writerDB).
-    WithErrorDB("custom_errors.db").
-    Reader(profile.ReadBalanced()).
-    Writer(profile.WriteBalanced()).
-    Open()
-```
+Profiles can still be applied to your connections (profiles are just specified SQLite PRAGMAS).
 
 qwr was inspired by numerous articles that describe using SQLite3 in production systems.
 
