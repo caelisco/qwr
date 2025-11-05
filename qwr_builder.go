@@ -205,9 +205,15 @@ func (mb *qwrBuilder) Writer(p *profile.Profile) *qwrBuilder {
 }
 
 // WithErrorDB sets the path for the error log database.
-// If not set, persistent error logging is disabled (in-memory error queue still works).
+// If not set, persistent error logging is disabled.
 // This method works with both New() and NewSQL() constructors.
+// In-memory error logging could cause unbounded memory growth in long-running applications.
 func (mb *qwrBuilder) WithErrorDB(path string) *qwrBuilder {
+	// Reject :memory: for error queue - it could cause memory leaks
+	if path == ":memory:" {
+		slog.Warn("Rejecting :memory: for error log database - could cause unbounded memory growth. Error logging will be disabled.")
+		return mb
+	}
 	mb.options.ErrorLogPath = path
 	return mb
 }
@@ -221,7 +227,7 @@ func (mb *qwrBuilder) Open() (*Manager, error) {
 	logger := slog.New(mb.logHandler)
 	slog.SetDefault(logger)
 
-	// Validate dbPath only if we need to open databases ourselves
+	// Validate path only if we need to open databases ourselves
 	if mb.reader == nil && mb.writer == nil && mb.path == "" {
 		return nil, errors.New("database path cannot be empty when not using NewSQL()")
 	}
@@ -255,7 +261,7 @@ func (mb *qwrBuilder) Open() (*Manager, error) {
 
 		// Open database if not already provided by user
 		if mb.reader == nil {
-			slog.Debug("Opening reader connection", "dbPath", mb.path)
+			slog.Debug("Opening reader connection", "path", mb.path)
 			var err error
 			mb.reader, err = open(mb.path, mb.readerProfile)
 			if err != nil {
@@ -289,7 +295,7 @@ func (mb *qwrBuilder) Open() (*Manager, error) {
 
 		// Open database if not already provided by user
 		if mb.writer == nil {
-			slog.Debug("Opening writer connection", "dbPath", mb.path)
+			slog.Debug("Opening writer connection", "path", mb.path)
 			var err error
 			mb.writer, err = open(mb.path, mb.writerProfile)
 			if err != nil {
@@ -331,12 +337,9 @@ func (mb *qwrBuilder) Open() (*Manager, error) {
 		)
 
 		// Initialize ErrorQueue
-		// Use options.ErrorLogPath if set, otherwise fall back to dbPath for backwards compatibility
-		if mb.options.ErrorLogPath == "" && mb.path != "" {
-			mb.options.ErrorLogPath = mb.path
-		}
+		// Only initialize with persistent DB if ErrorLogPath is explicitly set
 		slog.Debug("Initializing error queue", "errorLogPath", mb.options.ErrorLogPath)
-		mb.errorQueue = NewErrorQueue(nil, metrics, mb.options, mb.options.ErrorLogPath)
+		mb.errorQueue = NewErrorQueue(nil, metrics, mb.options, mb.path)
 
 		// Set up async error handler - Manager handles retries
 		mb.serialiser.SetAsyncErrorHandler(mb.handleAsyncError)
@@ -370,8 +373,8 @@ func (mb *qwrBuilder) Open() (*Manager, error) {
 }
 
 // Helper function to open a database with a profile
-func open(dbPath string, profile *profile.Profile) (*sql.DB, error) {
-	db, err := sql.Open("sqlite", dbPath)
+func open(path string, profile *profile.Profile) (*sql.DB, error) {
+	db, err := sql.Open("sqlite", path)
 	if err != nil {
 		return nil, err
 	}

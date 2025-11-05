@@ -37,8 +37,8 @@ func NewBatchCollector(ctx context.Context, ws *WriteSerialiser, options Options
 
 // dbName extracts the database filename for logging context
 func (bc *BatchCollector) dbName() string {
-	if bc.dbPath == "" || bc.dbPath == ":memory:" {
-		return bc.dbPath
+	if bc.dbPath == "" {
+		return ""
 	}
 	return filepath.Base(bc.dbPath)
 }

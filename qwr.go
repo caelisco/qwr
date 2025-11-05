@@ -12,7 +12,7 @@ import (
 	_ "modernc.org/sqlite"
 )
 
-// Manager handles serialized database operations
+// Manager handles serialised database operations
 type Manager struct {
 	reader         *sql.DB
 	writer         *sql.DB
@@ -31,8 +31,8 @@ type Manager struct {
 
 // Database extracts the database filename for logging context
 func (m *Manager) Database() string {
-	if m.path == "" || m.path == ":memory:" {
-		return m.path
+	if m.path == "" {
+		return ""
 	}
 	return filepath.Base(m.path)
 }

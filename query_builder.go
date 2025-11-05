@@ -185,7 +185,7 @@ func (qb *QueryBuilder) Async() (int64, error) {
 }
 
 // Execute submits the query to the worker pool and waits for completion.
-// Provides queued execution with immediate error feedback. Query will be serialized
+// Provides queued execution with immediate error feedback. Query will be serialised
 // with other operations but the caller will block until completion.
 func (qb *QueryBuilder) Execute() (*QueryResult, error) {
 	if err := qb.validate(); err != nil {

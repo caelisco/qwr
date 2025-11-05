@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"log/slog"
 	"path/filepath"
-	"strings"
 	"sync"
 	"time"
 
@@ -35,8 +34,10 @@ func NewErrorQueue(ws *WriteSerialiser, metrics *Metrics, opts Options, dbPath s
 		dbPath:    dbPath,
 	}
 
-	if dbPath != "" {
-		eq.initErrorLogDb(dbPath)
+	// Only initialize error log DB if ErrorLogPath is explicitly set and not :memory:
+	// We reject :memory: to prevent unbounded memory growth in long-running apps
+	if opts.ErrorLogPath != "" && opts.ErrorLogPath != ":memory:" {
+		eq.initErrorLogDb(opts.ErrorLogPath)
 	}
 
 	return eq
@@ -44,8 +45,8 @@ func NewErrorQueue(ws *WriteSerialiser, metrics *Metrics, opts Options, dbPath s
 
 // dbName extracts the database filename for logging context
 func (eq *ErrorQueue) dbName() string {
-	if eq.dbPath == "" || eq.dbPath == ":memory:" {
-		return eq.dbPath
+	if eq.dbPath == "" {
+		return ""
 	}
 	return filepath.Base(eq.dbPath)
 }
@@ -258,13 +259,12 @@ func (eq *ErrorQueue) PersistError(jobErr JobError, reason string) error {
 }
 
 // initErrorLogDb creates and initialises the error log database
-func (eq *ErrorQueue) initErrorLogDb(mainDbPath string) {
-	logDbPath := generateErrorLogPath(mainDbPath)
+func (eq *ErrorQueue) initErrorLogDb(errorLogPath string) {
 	var err error
 
-	eq.db, err = sql.Open("sqlite", logDbPath)
+	eq.db, err = sql.Open("sqlite", errorLogPath)
 	if err != nil {
-		slog.Error("Failed to open error log database", "path", logDbPath, "error", err, "db", eq.dbName())
+		slog.Error("Failed to open error log database", "path", errorLogPath, "error", err, "db", eq.dbName())
 		return
 	}
 
@@ -297,13 +297,6 @@ func (eq *ErrorQueue) initErrorLogDb(mainDbPath string) {
 		return
 	}
 
-	slog.Debug("Error log database initialised", "path", logDbPath, "db", eq.dbName())
+	slog.Debug("Error log database initialised", "path", errorLogPath, "db", eq.dbName())
 }
 
-// generateErrorLogPath creates the error log database path
-func generateErrorLogPath(mainDbPath string) string {
-	if strings.HasSuffix(strings.ToLower(mainDbPath), ".db") {
-		return mainDbPath[:len(mainDbPath)-3] + "_qwr_error_log.db"
-	}
-	return mainDbPath + "_qwr_error_log.db"
-}
