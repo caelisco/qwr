@@ -209,7 +209,6 @@ func (mb *qwrBuilder) Writer(p *profile.Profile) *qwrBuilder {
 // This method works with both New() and NewSQL() constructors.
 // In-memory error logging could cause unbounded memory growth in long-running applications.
 func (mb *qwrBuilder) WithErrorDB(path string) *qwrBuilder {
-	// Reject :memory: for error queue - it could cause memory leaks
 	if path == ":memory:" {
 		slog.Warn("Rejecting :memory: for error log database - could cause unbounded memory growth. Error logging will be disabled.")
 		return mb

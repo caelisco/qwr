@@ -34,7 +34,7 @@ func NewErrorQueue(ws *WriteSerialiser, metrics *Metrics, opts Options, dbPath s
 		dbPath:    dbPath,
 	}
 
-	// Only initialize error log DB if ErrorLogPath is explicitly set and not :memory:
+	// Only initialize error log DB if ErrorLogPath is set and is not :memory:
 	// We reject :memory: to prevent unbounded memory growth in long-running apps
 	if opts.ErrorLogPath != "" && opts.ErrorLogPath != ":memory:" {
 		eq.initErrorLogDb(opts.ErrorLogPath)
@@ -299,4 +299,3 @@ func (eq *ErrorQueue) initErrorLogDb(errorLogPath string) {
 
 	slog.Debug("Error log database initialised", "path", errorLogPath, "db", eq.dbName())
 }
-
